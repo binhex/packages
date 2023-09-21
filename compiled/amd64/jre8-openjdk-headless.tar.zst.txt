@@ -1,1 +1,0 @@
-jre8-openjdk-headless-8.u275-1-x86_64.pkg.tar.zst
