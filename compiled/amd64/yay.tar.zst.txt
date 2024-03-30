@@ -1,1 +1,1 @@
-yay-10.2.2-4-x86_64.pkg.tar.zst
+yay-bin-12.3.5-1-x86_64.pkg.tar.zst
