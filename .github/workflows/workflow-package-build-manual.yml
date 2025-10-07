@@ -45,8 +45,10 @@ jobs:
               if [[ -f "${filepath}" ]]; then
                 base_name=$(basename "${filepath}")
                 new_name=$(echo "${base_name}" | sed -E 's/-[0-9]+(\.[0-9]+)*(-[a-zA-Z0-9_.]+)?\.tar\.zst$/.tar.zst/')
-                mv --force "${filepath}" "${{ env.PACKAGE_PATH }}/${new_name}"
-                echo "[info] Renamed package filename from '${base_name}' to '${new_name}'"
+                if [[ ! -f "${{ env.PACKAGE_PATH }}/${new_name}" ]]; then
+                  mv --force "${filepath}" "${{ env.PACKAGE_PATH }}/${new_name}"
+                  echo "[info] Renamed package filename from '${base_name}' to '${new_name}'"
+                fi
               fi
             done
       - name: Commit and push packages to currently checked out GitHub repository
