@@ -32,9 +32,14 @@ jobs:
       - name: Build AUR packages
         shell: bash
         run: |
+            cd /tmp || exit 1
+
+            # ensure we have no pre-existing packages, as github re-uses executors
+            rm -f *.tar.zst
+
             echo "Package(s) to build: ${{ env.AUR_PACKAGES }}"
             docker pull binhex/arch-devel:latest
-            docker run -v /tmp:/host -t binhex/arch-devel bash -c "refresh.sh && aur.sh --aur-package '${{ env.AUR_PACKAGES }}' --package-path '/host'"
+            docker run -v $(pwd):/host -t binhex/arch-devel bash -c "refresh.sh && aur.sh --aur-package '${{ env.AUR_PACKAGES }}' --package-path '/host'"
       - name: DEBUG Showing compiled package(s) on host filesystem
         shell: bash
         run: |
