@@ -11,6 +11,8 @@ on:
 jobs:
   package-build:
     runs-on: ubuntu-latest
+    env:
+      PACKAGE_PATH: "${GITHUB_WORKSPACE}/compiled/amd64"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,17 +33,28 @@ jobs:
         run: |
             echo "Package(s) to build: ${{ github.event.inputs.package_name }}"
             docker pull binhex/arch-devel:latest
-            docker run -v "${GITHUB_WORKSPACE}/packages/compiled/amd64":/host -t binhex/arch-devel bash -c "refresh.sh && aur.sh --aur-package '${{ github.event.inputs.package_name }}' --package-path '/host'"
+            docker run -v "${{ env.PACKAGE_PATH }}":/host -t binhex/arch-devel bash -c "refresh.sh && aur.sh --aur-package '${{ github.event.inputs.package_name }}' --package-path '/host'"
       - name: DEBUG Showing compiled package(s) on host filesystem
         shell: bash
         run: |
-            ls -al "${GITHUB_WORKSPACE}/packages/compiled/amd64"
+            ls -al "${{ env.PACKAGE_PATH }}"
+      - name: Remove all versioning information from the filename
+        shell: bash
+        run: |
+            for file in "${{ env.PACKAGE_PATH }}"/*.tar.zst; do
+              if [[ -f "${file}" ]]; then
+                base_name=$(basename "${file}")
+                new_name=$(echo "${base_name}" | sed -E 's/-[0-9]+(\.[0-9]+)*(-[a-zA-Z0-9_.]+)?\.tar\.zst$/.tar.zst/')
+                mv "${{ env.PACKAGE_PATH }}/${file}" "${{ env.PACKAGE_PATH }}/${new_name}"
+                echo "[info] Renamed package filename from '${base_name}' to '${new_name}'"
+              fi
+            done
       - name: Commit and push packages to currently checked out GitHub repository
         shell: bash
         run: |
             git config --global user.name "github-actions[bot]"
             git config --global user.email "github-actions[bot]@users.noreply.github.com"
-            git add "${GITHUB_WORKSPACE}/packages/compiled/amd64/"*.tar.zst
+            git add "${{ env.PACKAGE_PATH }}"/*.tar.zst
             if git commit -m "Added compiled AUR package(s): ${{ github.event.inputs.package_name }}"; then
               git push
               echo "Pushed compiled package(s) to GitHub repository."
