@@ -28,82 +28,82 @@ jobs:
       - name: DEBUG Show Runners environment
         shell: bash
         run: |
-            export
+          export
       - name: Download AUR package tarball
         shell: bash
         run: |
-            cd /tmp || exit 1
+          cd /tmp || exit 1
 
-            # get package version from PKGBUILD file
-            for package in ${{ env.AUR_PACKAGES }}; do
-              # download tarball and extract
-              if ! stderr=$(curl -o "${package}.tar.gz" -L "https://aur.archlinux.org/cgit/aur.git/snapshot/${package}.tar.gz" && tar -xvf "${package}.tar.gz" -C "${package}/"); then
-                echo "[warn] Failed to download AUR package snapshot '${package}' from AUR, error is '${stderr}'" >&2
-                continue
-              fi
-            done
+          # get package version from PKGBUILD file
+          for package in ${{ env.AUR_PACKAGES }}; do
+            # download tarball and extract
+            if ! stderr=$(curl -o "${package}.tar.gz" -L "https://aur.archlinux.org/cgit/aur.git/snapshot/${package}.tar.gz" && tar -xvf "${package}.tar.gz" -C .); then
+              echo "[error] Failed to download AUR package snapshot '${package}' from AUR, error is '${stderr}'" >&2
+              exit 1
+            fi
+          done
       - name: Identify package name and version from extracted tarball file 'PKGBUILD'
         shell: bash
         run: |
-            cd /tmp || exit 1
+          cd /tmp || exit 1
 
-            for package in ${{ env.AUR_PACKAGES }}; do
-              if [[ -f "${package}/PKGBUILD" ]]; then
-                source "${package}/PKGBUILD"
-                echo "AUR Package '${package}' name is '${pkgname}'"
-                echo "AUR Package '${package}' version is '${pkgver}-${pkgrel}'"
-              else
-                echo "[warn] PKGBUILD file not found for package '${package}'" >&2
-              fi
-            done
+          for package in ${{ env.AUR_PACKAGES }}; do
+            if [[ -f "./${package}/PKGBUILD" ]]; then
+              source "./${package}/PKGBUILD"
+              echo "AUR Package '${package}' name is '${pkgname}'"
+              echo "AUR Package '${package}' version is '${pkgver}-${pkgrel}'"
+            else
+              echo "[warn] PKGBUILD file not found for package '${package}'" >&2
+            fi
+          done
       - name: Build AUR packages using docker image binhex/arch-devel
         shell: bash
         run: |
-            cd /tmp || exit 1
+          cd /tmp || exit 1
 
-            # ensure we have no pre-existing packages, as github re-uses executors
-            rm -f *.tar.zst
+          # ensure we have no pre-existing packages, as github re-uses executors
+          rm -f *.tar.zst
 
-            echo "Package(s) to build: ${{ env.AUR_PACKAGES }}"
-            docker pull binhex/arch-devel:latest
-            docker run -v $(pwd):/host -t binhex/arch-devel bash -c "refresh.sh && aur.sh --aur-package '${{ env.AUR_PACKAGES }}' --package-path '/host'"
+          echo "Package(s) to build: ${{ env.AUR_PACKAGES }}"
+          docker pull binhex/arch-devel:latest
+          docker run -v $(pwd):/host -t binhex/arch-devel bash -c "refresh.sh && aur.sh --aur-package '${{ env.AUR_PACKAGES }}' --package-path '/host'"
       - name: DEBUG Showing compiled package(s) on host filesystem
         shell: bash
         run: |
-            cd /tmp || exit 1
+          cd /tmp || exit 1
 
-            echo "[debug] Working in directory: $(pwd)"
-            if ! ls -la *.tar.zst 2>/dev/null; then
-              echo "[info] No tar.zst files found - no packages were built, exiting workflow"
-              exit 0
-            fi
+          echo "[debug] Working in directory: $(pwd)"
+          if ! ls -la *.tar.zst 2>/dev/null; then
+            echo "[info] No tar.zst files found - no packages were built, exiting workflow"
+            exit 0
+          fi
       - name: Remove all versioning information from the package filenames and move to workspace
         shell: bash
         run: |
-            cd /tmp || exit 1
+          cd /tmp || exit 1
 
-            # fix ownership of the compiled packages and destination directory
-            sudo chown -R $(id -u):$(id -g) *.tar.zst "${{ env.PACKAGE_PATH }}"
+          # fix ownership of the compiled packages and destination directory
+          sudo chown -R $(id -u):$(id -g) *.tar.zst "${{ env.PACKAGE_PATH }}"
 
-            for filepath in *.tar.zst; do
-              if [[ -f "${filepath}" ]]; then
-                base_name="${filepath}"
-                package_name=$(echo "${base_name}" | grep -P -o -m 1 '^[^\d]+')
-                package_full_name="${package_name}x86_64.pkg.tar.zst"
-                echo "[info] Moving package from '$(pwd)/${filepath}' to '${{ env.PACKAGE_PATH }}/${package_full_name}'"
-                mv "${filepath}" "${{ env.PACKAGE_PATH }}/${package_full_name}"
-                echo "[info] Successfully moved package"
-              fi
-            done
+          for filepath in *.tar.zst; do
+            if [[ -f "${filepath}" ]]; then
+              base_name="${filepath}"
+              package_name=$(echo "${base_name}" | grep -P -o -m 1 '^[^\d]+')
+              package_full_name="${package_name}x86_64.pkg.tar.zst"
+              echo "[info] Moving package from '$(pwd)/${filepath}' to '${{ env.PACKAGE_PATH }}/${package_full_name}'"
+              mv "${filepath}" "${{ env.PACKAGE_PATH }}/${package_full_name}"
+              echo "[info] Successfully moved package"
+            fi
+          done
       - name: Commit and push packages to currently checked out GitHub repository
         shell: bash
         run: |
-            git config --global user.name "github-actions[bot]"
-            git config --global user.email "github-actions[bot]@users.noreply.github.com"
-            git add "${{ env.PACKAGE_PATH }}/"*.tar.zst
-            if git commit -m "Added compiled AUR package(s): ${{ github.event.inputs.package_name }}"; then
-              git push
-              echo "Pushed compiled package(s) to GitHub repository."
-            else
-              echo "No changes to commit."
-            fi
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add "${{ env.PACKAGE_PATH }}/"*.tar.zst
+          if git commit -m "Added compiled AUR package(s): ${{ github.event.inputs.package_name }}"; then
+            git push
+            echo "Pushed compiled package(s) to GitHub repository."
+          else
+            echo "No changes to commit."
+          fi
