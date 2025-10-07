@@ -63,17 +63,9 @@ jobs:
                 base_name="${filepath}"
                 package_name=$(echo "${base_name}" | grep -P -o -m 1 '^[^\d]+')
                 package_full_name="${package_name}x86_64.pkg.tar.zst"
-                if [[ "${base_name}" != "${package_full_name}" ]]; then
-                  if [[ ! -f "${{ env.PACKAGE_PATH }}/${package_full_name}" ]]; then
-                    echo "[info] Moving package from '${filepath}' to '${{ env.PACKAGE_PATH }}/${package_full_name}'"
-                    mv "${filepath}" "${{ env.PACKAGE_PATH }}/${package_full_name}"
-                    echo "[info] Successfully renamed package filename"
-                  else
-                    echo "[warn] Target file '${package_full_name}' already exists, skipping rename"
-                  fi
-                else
-                  echo "[info] File '${base_name}' already has correct naming format"
-                fi
+                echo "[info] Moving package from '${filepath}' to '${{ env.PACKAGE_PATH }}/${package_full_name}'"
+                mv -f "${filepath}" "${{ env.PACKAGE_PATH }}/${package_full_name}"
+                echo "[info] Successfully moved package"
               fi
             done
       - name: Commit and push packages to currently checked out GitHub repository
