@@ -1,1 +1,0 @@
-paru-git-2.0.4.r38.gc9c4a23-1-aarch64.pkg.tar

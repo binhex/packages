@@ -1,1 +1,0 @@
-yay-bin-12.3.5-1-aarch64.pkg.tar
