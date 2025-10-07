@@ -50,12 +50,22 @@ jobs:
           for package in ${{ env.AUR_PACKAGES }}; do
             if [[ -f "./${package}/PKGBUILD" ]]; then
               source "./${package}/PKGBUILD"
-              echo "AUR Package '${package}' name is '${pkgname}'"
-              echo "AUR Package '${package}' version is '${pkgver}-${pkgrel}'"
+
+              # extract package name and version variables from PKGBUILD
+              tarball_package_name="${pkgname}"
+              tarball_package_version="${pkgver}-${pkgrel}"
+
+              # show details for debug
+              echo "[debug] AUR Package '${package}' name is '${tarball_package_name}'"
+              echo "[debug] AUR Package '${package}' version is '${tarball_package_version}'"
+
+              # Save to GitHub environment for use in subsequent steps
+              echo "${package}=${tarball_package_name},${tarball_package_version}" >> $GITHUB_ENV
             else
               echo "[warn] PKGBUILD file not found for package '${package}'" >&2
             fi
           done
+          export
       - name: Build AUR packages using docker image binhex/arch-devel
         shell: bash
         run: |
