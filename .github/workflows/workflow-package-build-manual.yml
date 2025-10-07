@@ -42,7 +42,7 @@ jobs:
               exit 1
             fi
           done
-      - name: Identify package name and version from extracted tarball file 'PKGBUILD'
+      - name: Identify package name and version from extracted tarball file 'PKGBUILD' and save to $GITHUB_ENV
         shell: bash
         run: |
           cd /tmp || exit 1
@@ -52,20 +52,20 @@ jobs:
               source "./${package}/PKGBUILD"
 
               # extract package name and version variables from PKGBUILD
-              tarball_package_name="${pkgname}"
-              tarball_package_version="${pkgver}-${pkgrel}"
+              pkgname="${pkgname}"
+              pkgver="${pkgver}-${pkgrel}"
 
               # show details for debug
-              echo "[debug] AUR Package '${package}' name is '${tarball_package_name}'"
-              echo "[debug] AUR Package '${package}' version is '${tarball_package_version}'"
+              echo "[debug] AUR Package '${package}' name is '${pkgname}'"
+              echo "[debug] AUR Package '${package}' version is '${pkgver}'"
 
               # Save to GitHub environment for use in subsequent steps
-              echo "${package}=${tarball_package_name},${tarball_package_version}" >> $GITHUB_ENV
+              echo "${package}=${pkgname},${pkgver}" >> "${GITHUB_ENV}"
             else
               echo "[warn] PKGBUILD file not found for package '${package}'" >&2
             fi
           done
-          echo "htpasswd info: ${{ env.htpasswd }}"
+
       - name: Build AUR packages using docker image binhex/arch-devel
         shell: bash
         run: |
@@ -95,14 +95,22 @@ jobs:
           # fix ownership of the compiled packages and destination directory
           sudo chown -R $(id -u):$(id -g) *.tar.zst "${{ env.PACKAGE_PATH }}"
 
-          for filepath in *.tar.zst; do
-            if [[ -f "${filepath}" ]]; then
-              base_name="${filepath}"
-              package_name=$(echo "${base_name}" | grep -P -o -m 1 '^[^\d]+')
-              package_full_name="${package_name}x86_64.pkg.tar.zst"
-              echo "[info] Moving package from '$(pwd)/${filepath}' to '${{ env.PACKAGE_PATH }}/${package_full_name}'"
-              mv "${filepath}" "${{ env.PACKAGE_PATH }}/${package_full_name}"
-              echo "[info] Successfully moved package"
+          # Use the package names saved from PKGBUILD files
+          for package in ${{ env.AUR_PACKAGES }}; do
+            # Get the package name from environment variable (format: "name,version")
+            package_info=$(printenv "${package}" 2>/dev/null || echo "")
+            if [[ -n "${package_info}" ]]; then
+              IFS=',' read -r pkg_name pkg_version <<< "${package_info}"
+
+              # Find the compiled package file that matches this package
+              for filepath in *.tar.zst; do
+                if [[ "${filepath}" == "${pkg_name}"-* ]]; then
+                  final_name="${pkg_name}-x86_64.pkg.tar.zst"
+                  echo "[info] Moving '${filepath}' to '${{ env.PACKAGE_PATH }}/${final_name}'"
+                  mv "${filepath}" "${{ env.PACKAGE_PATH }}/${final_name}"
+                  break
+                fi
+              done
             fi
           done
       - name: Commit and push packages to currently checked out GitHub repository
