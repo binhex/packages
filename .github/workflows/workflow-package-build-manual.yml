@@ -38,18 +38,20 @@ jobs:
       - name: DEBUG Showing compiled package(s) on host filesystem
         shell: bash
         run: |
-            ls -al "${{ env.PACKAGE_PATH }}"
+            cd "${{ env.PACKAGE_PATH }}" || exit 1
+            echo "[debug] Working in directory: $(pwd)"
+            if ! ls -la *.tar.zst 2>/dev/null; then
+              echo "[info] No tar.zst files found - no packages were built, exiting workflow"
+              exit 0
+            fi
       - name: Remove all versioning information from the package filenames
         shell: bash
         run: |
             cd "${{ env.PACKAGE_PATH }}" || exit 1
-            echo "[debug] Working in directory: $(pwd)"
-            echo "[debug] Files before renaming:"
-            if ! ls -la *.tar.zst 2>/dev/null; then
-              echo "[info] No .tar.zst files found - no packages were built, exiting workflow"
-              exit 0
-            fi
 
+            # set permissions to ensuree we can rename packages
+            sudo chmod 775 *.tar.zst
+            
             for filepath in *.tar.zst; do
               if [[ -f "${filepath}" ]]; then
                 base_name="${filepath}"
@@ -68,9 +70,6 @@ jobs:
                 fi
               fi
             done
-
-            echo "[debug] Files after renaming:"
-            ls -la *.tar.zst 2>/dev/null || echo "No .tar.zst files found"
       - name: Commit and push packages to currently checked out GitHub repository
         shell: bash
         run: |
