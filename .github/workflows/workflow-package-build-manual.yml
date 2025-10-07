@@ -44,10 +44,11 @@ jobs:
             for filepath in "${{ env.PACKAGE_PATH }}"/*.tar.zst; do
               if [[ -f "${filepath}" ]]; then
                 base_name=$(basename "${filepath}")
-                new_name=$(echo "${base_name}" | sed -E 's/-[0-9]+(\.[0-9]+)*(-[a-zA-Z0-9_.]+)?\.tar\.zst$/.tar.zst/')
-                if [[ ! -f "${{ env.PACKAGE_PATH }}/${new_name}" ]]; then
-                  mv --force "${filepath}" "${{ env.PACKAGE_PATH }}/${new_name}"
-                  echo "[info] Renamed package filename from '${base_name}' to '${new_name}'"
+                package_name=$(echo "${base_name}" | grep -P -o -m 1 '^[^-]+')
+                package_full_name="${package_name}-x86_64.pkg.tar.zst"
+                if [[ ! -f "${{ env.PACKAGE_PATH }}/${package_full_name}" ]]; then
+                  mv --force "${filepath}" "${{ env.PACKAGE_PATH }}/${package_full_name}"
+                  echo "[info] Renamed package filename from '${base_name}' to '${package_full_name}'"
                 fi
               fi
             done
