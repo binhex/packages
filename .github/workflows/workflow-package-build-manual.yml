@@ -37,7 +37,7 @@ jobs:
             # get package version from PKGBUILD file
             for package in ${{ env.AUR_PACKAGES }}; do
               # download tarball and extract
-              if ! stderr=$(rcurl.sh -o "${package}.tar.gz" -L "https://aur.archlinux.org/cgit/aur.git/snapshot/${package}.tar.gz" && tar -xvf "${package}.tar.gz" -C "${package}/"); then
+              if ! stderr=$(curl -o "${package}.tar.gz" -L "https://aur.archlinux.org/cgit/aur.git/snapshot/${package}.tar.gz" && tar -xvf "${package}.tar.gz" -C "${package}/"); then
                 echo "[warn] Failed to download AUR package snapshot '${package}' from AUR, error is '${stderr}'" >&2
                 continue
               fi
