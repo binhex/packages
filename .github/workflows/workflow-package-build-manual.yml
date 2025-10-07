@@ -29,7 +29,34 @@ jobs:
         shell: bash
         run: |
             export
-      - name: Build AUR packages
+      - name: Download AUR package tarball
+        shell: bash
+        run: |
+            cd /tmp || exit 1
+
+            # get package version from PKGBUILD file
+            for package in ${{ env.AUR_PACKAGES }}; do
+              # download tarball and extract
+              if ! stderr=$(rcurl.sh -o "${package}.tar.gz" -L "https://aur.archlinux.org/cgit/aur.git/snapshot/${package}.tar.gz" && tar -xvf "${package}.tar.gz" -C "${package}/"); then
+                echo "[warn] Failed to download AUR package snapshot '${package}' from AUR, error is '${stderr}'" >&2
+                continue
+              fi
+            done
+      - name: Identify package name and version from extracted tarball file 'PKGBUILD'
+        shell: bash
+        run: |
+            cd /tmp || exit 1
+
+            for package in ${{ env.AUR_PACKAGES }}; do
+              if [[ -f "${package}/PKGBUILD" ]]; then
+                source "${package}/PKGBUILD"
+                echo "AUR Package '${package}' name is '${pkgname}'"
+                echo "AUR Package '${package}' version is '${pkgver}-${pkgrel}'"
+              else
+                echo "[warn] PKGBUILD file not found for package '${package}'" >&2
+              fi
+            done
+      - name: Build AUR packages using docker image binhex/arch-devel
         shell: bash
         run: |
             cd /tmp || exit 1
