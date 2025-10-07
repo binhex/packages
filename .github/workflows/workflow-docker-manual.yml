@@ -32,3 +32,7 @@ jobs:
             echo "Package(s) to build: ${{ github.event.inputs.package_name }}"
             docker pull binhex/arch-devel:latest
             docker run -v /tmp:/host -t binhex/arch-devel bash -c "aur.sh --aur-package '${{ github.event.inputs.package_name }}' --package-path '/host'"
+      - name: DEBUG Show compiled packages
+        shell: bash
+        run: |
+            ls -al /tmp
