@@ -6,7 +6,7 @@ on:
       package_name:
         description: 'Enter AUR package to build'
         required: true
-        default: ''
+        default: 'boringtun,htpasswd,libtorrent-rasterbar-1_2-git'
 
 jobs:
   package-build:
