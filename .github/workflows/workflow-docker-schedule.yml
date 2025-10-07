@@ -1,0 +1,168 @@
+name: workflow-docker-schedule
+
+on:
+  schedule:
+    # run at midnight on day 28 of every month
+    - cron: "0 0 28 * *"
+  push:
+    tags:
+      - '*'
+
+jobs:
+  gcr-dockerhub-build-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up QEMU for multi-arch support
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Login to GitHub
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.CR_PAT }}
+      - name: Login to Quay
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_TOKEN }}
+      - name: Login to GitLab
+        uses: docker/login-action@v3
+        with:
+          registry: registry.gitlab.com
+          username: ${{ secrets.GITLAB_USERNAME }}
+          password: ${{ secrets.GITLAB_TOKEN }}
+      - name: Sync GitHub README.md with Docker Hub
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }} # NOTE: This MUST be the password NOT the token
+          repository: ${{ github.repository }}
+          short-description: ${{ github.event.repository.description }}
+      - name: DEBUG Show Runners environment
+        shell: bash
+        run: |
+            export
+      - name: Identify GitHub Release tag name
+        # if action triggered by schedule then generate tag name from date with '01 appended'
+        # elif action triggered by creation of release then use tag name specified by user
+        # elif action triggered manually then use tag name specified by user
+        # else unknown trigger
+        shell: bash
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "schedule" ]]; then
+            tag=$(date +%Y%m%d01)
+            echo "[debug] Generated tag name is '${tag}'"
+            echo "tag=$tag" >> "${GITHUB_OUTPUT}"
+          elif [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            tag="${GITHUB_REF_NAME}" && echo "tag=${tag//+/-}" >> "${GITHUB_OUTPUT}"
+            echo "[debug] Generated tag name is '${tag}'"
+            echo "tag=$tag" >> "${GITHUB_OUTPUT}"
+          elif [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            tag="${{ github.event.inputs.tags }}" && echo "tag=${tag//+/-}" >> "${GITHUB_OUTPUT}"
+            echo "[debug] Generated tag name is '${tag}'"
+            echo "tag=$tag" >> "${GITHUB_OUTPUT}"
+          else
+            echo "[error] Unable to determine event name"
+            exit 1
+          fi
+        id: identify_github_release_tag_name
+      - name: Generate temporary tag name
+        shell: bash
+        run: |
+          test_tag=$(date +%Y%m%d%H%M%S)
+          echo "[debug] Generated test tag name is '${test_tag}'"
+          echo "test_tag=$test_tag" >> $GITHUB_OUTPUT
+        id: generate_temporary_tag_name
+      - name: Generate app name
+        shell: bash
+        run: |
+          app_name=$(echo "${GITHUB_REPOSITORY}" | grep -P -o -m 1 '(?<=/arch-).*')
+          echo "[debug] Generated app name is '${app_name}'"
+          echo "app_name=$app_name" >> $GITHUB_OUTPUT
+        id: generate_app_name
+      - name: Build amd64 image and export to Docker for testing
+        uses: Wandalen/wretry.action@v3
+        with:
+          action: docker/build-push-action@v6
+          with: |
+            context: .
+            load: true
+            platforms: linux/amd64
+            tags: ghcr.io/${{ github.repository }}:${{ steps.generate_temporary_tag_name.outputs.test_tag }}
+            build-args: |
+              RELEASETAG=${{ steps.identify_github_release_tag_name.outputs.tag }}
+              APPNAME=${{ steps.generate_app_name.outputs.app_name }}
+          attempt_limit: 3
+          attempt_delay: 600000
+      - name: Run tests using previously built image
+        shell: bash
+        run: |
+          git_clone_scripts_dest="/tmp/scripts"
+          git_clone_scripts_repo="https://github.com/binhex/scripts.git"
+          git clone "${git_clone_scripts_repo}" "${git_clone_scripts_dest}"
+          "${git_clone_scripts_dest}/scripts/docker/testrunner.sh" --app-name ${{ steps.generate_app_name.outputs.app_name }} --image-name "ghcr.io/${{ github.repository }}:${{ steps.generate_temporary_tag_name.outputs.test_tag }}"
+      - name: Generate tag names
+        shell: bash
+        run: |
+          # Define registries
+          registries=(
+            "${{ github.repository }}"
+            "quay.io/${{ github.repository }}"
+            "ghcr.io/${{ github.repository }}"
+            "registry.gitlab.com/${{ github.repository }}"
+          )
+
+          # Construct tag names
+          tag_names=""
+          for registry in "${registries[@]}"; do
+            tag_names+="${registry}:${{ steps.identify_github_release_tag_name.outputs.tag }}, ${registry}:latest, "
+          done
+          # Remove trailing comma and space
+          tag_names="${tag_names%, }"
+
+          # Output tag names
+          echo "[debug] Constructed tag names: ${tag_names}"
+          echo "tag_names=${tag_names}" >> $GITHUB_OUTPUT
+        id: generate_tag_names
+      - name: Build, tag and push images to registries
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.generate_tag_names.outputs.tag_names }}
+          build-args: |
+            RELEASETAG=${{ steps.identify_github_release_tag_name.outputs.tag }}
+            APPNAME=${{ steps.generate_app_name.outputs.app_name }}
+      - name: Trigger build of int images
+        uses: Wandalen/wretry.action@v3
+        with:
+          command: |
+            # login to github
+            echo "${{ secrets.TDB_PAT }}" | gh auth login --with-token
+
+            # construct array of repos to trigger builds for
+            declare -a int_repos_array=("arch-int-vpn" "arch-int-gui" "arch-devel")
+
+            # process repos and create release (triggers action to build)
+            for int_repo in "${int_repos_array[@]}"; do
+
+              # delete any existing release with the same tag name using gh cli
+              gh release delete "${{ steps.identify_github_release_tag_name.outputs.tag }}" --repo "binhex/${int_repo}" --cleanup-tag --yes || true
+
+              # create release using gh cli
+              # note --target is not specified as it maybe 'main' or 'master'
+              gh release create "${{ steps.identify_github_release_tag_name.outputs.tag }}" --repo "binhex/${int_repo}" --notes "API/URL triggered release"
+            done
+          attempt_limit: 3
+          attempt_delay: 600000
