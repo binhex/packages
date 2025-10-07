@@ -87,7 +87,7 @@ jobs:
             echo "[info] No tar.zst files found - no packages were built, exiting workflow"
             exit 0
           fi
-      - name: Remove all versioning information from the package filenames and move to workspace
+      - name: Move compiled package to GitHub repository workspace
         shell: bash
         run: |
           cd /tmp || exit 1
@@ -108,6 +108,8 @@ jobs:
                   final_name="${pkg_name}-x86_64.pkg.tar.zst"
                   echo "[info] Moving '${filepath}' to '${{ env.PACKAGE_PATH }}/${final_name}'"
                   mv "${filepath}" "${{ env.PACKAGE_PATH }}/${final_name}"
+                  echo "[info] Writing package version to file '${{ env.PACKAGE_PATH }}/${final_name}.version'"
+                  echo "${pkg_version}" > "${{ env.PACKAGE_PATH }}/${final_name}.version"
                   break
                 fi
               done
@@ -118,7 +120,7 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add "${{ env.PACKAGE_PATH }}/"*.tar.zst
+          git add "${{ env.PACKAGE_PATH }}/"*
           if git commit -m "Added compiled AUR package(s): ${{ github.event.inputs.package_name }}"; then
             git push
             echo "Pushed compiled package(s) to GitHub repository."
