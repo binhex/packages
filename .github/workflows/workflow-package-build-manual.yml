@@ -41,11 +41,11 @@ jobs:
       - name: Remove all versioning information from the filename
         shell: bash
         run: |
-            for file in "${{ env.PACKAGE_PATH }}"/*.tar.zst; do
-              if [[ -f "${file}" ]]; then
-                base_name=$(basename "${file}")
+            for filepath in "${{ env.PACKAGE_PATH }}"/*.tar.zst; do
+              if [[ -f "${filepath}" ]]; then
+                base_name=$(basename "${filepath}")
                 new_name=$(echo "${base_name}" | sed -E 's/-[0-9]+(\.[0-9]+)*(-[a-zA-Z0-9_.]+)?\.tar\.zst$/.tar.zst/')
-                mv "${{ env.PACKAGE_PATH }}/${file}" "${{ env.PACKAGE_PATH }}/${new_name}"
+                mv "${filepath}" "${{ env.PACKAGE_PATH }}/${new_name}"
                 echo "[info] Renamed package filename from '${base_name}' to '${new_name}'"
               fi
             done
