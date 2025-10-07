@@ -50,7 +50,7 @@ jobs:
             cd "${{ env.PACKAGE_PATH }}" || exit 1
             whoami
             # set permissions to ensuree we can rename packages
-            sudo chmod 775 *.tar.zst
+            sudo chown $(id -u):$(id -g) *.tar.zst
 
             for filepath in *.tar.zst; do
               if [[ -f "${filepath}" ]]; then
