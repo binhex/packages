@@ -65,7 +65,7 @@ jobs:
               echo "[warn] PKGBUILD file not found for package '${package}'" >&2
             fi
           done
-          export
+          echo "github env is: '${GITHUB_ENV}'"
       - name: Build AUR packages using docker image binhex/arch-devel
         shell: bash
         run: |
