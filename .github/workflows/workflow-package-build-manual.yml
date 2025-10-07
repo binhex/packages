@@ -38,14 +38,14 @@ jobs:
         shell: bash
         run: |
             ls -al "${{ env.PACKAGE_PATH }}"
-      - name: Remove all versioning information from the filename
+      - name: Remove all versioning information from the package filenames
         shell: bash
         run: |
             for filepath in "${{ env.PACKAGE_PATH }}"/*.tar.zst; do
               if [[ -f "${filepath}" ]]; then
                 base_name=$(basename "${filepath}")
                 new_name=$(echo "${base_name}" | sed -E 's/-[0-9]+(\.[0-9]+)*(-[a-zA-Z0-9_.]+)?\.tar\.zst$/.tar.zst/')
-                mv "${filepath}" "${{ env.PACKAGE_PATH }}/${new_name}"
+                mv --force "${filepath}" "${{ env.PACKAGE_PATH }}/${new_name}"
                 echo "[info] Renamed package filename from '${base_name}' to '${new_name}'"
               fi
             done
