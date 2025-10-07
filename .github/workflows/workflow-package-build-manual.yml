@@ -34,26 +34,24 @@ jobs:
         run: |
             echo "Package(s) to build: ${{ env.AUR_PACKAGES }}"
             docker pull binhex/arch-devel:latest
-            docker run -v "${{ env.PACKAGE_PATH }}":/host -t binhex/arch-devel bash -c "refresh.sh && aur.sh --aur-package '${{ env.AUR_PACKAGES }}' --package-path '/host'"
+            docker run -v /tmp:/host -t binhex/arch-devel bash -c "refresh.sh && aur.sh --aur-package '${{ env.AUR_PACKAGES }}' --package-path '/host'"
       - name: DEBUG Showing compiled package(s) on host filesystem
         shell: bash
         run: |
-            cd "${{ env.PACKAGE_PATH }}" || exit 1
-            # set permissions to ensure we can rename packages
-            sudo chown $(id -u):$(id -g) *.tar.zst
+            cd /tmp || exit 1
 
             echo "[debug] Working in directory: $(pwd)"
             if ! ls -la *.tar.zst 2>/dev/null; then
               echo "[info] No tar.zst files found - no packages were built, exiting workflow"
               exit 0
             fi
-      - name: Remove all versioning information from the package filenames
+      - name: Remove all versioning information from the package filenames and move to workspace
         shell: bash
         run: |
-            cd "${{ env.PACKAGE_PATH }}" || exit 1
-            whoami
+            cd /tmp || exit 1
+
             # set permissions to ensure we can rename packages
-            sudo chown $(id -u):$(id -g) $(pwd)
+            #sudo chown $(id -u):$(id -g) $(pwd)
 
             for filepath in *.tar.zst; do
               if [[ -f "${filepath}" ]]; then
@@ -61,9 +59,9 @@ jobs:
                 package_name=$(echo "${base_name}" | grep -P -o -m 1 '^[^\d]+')
                 package_full_name="${package_name}x86_64.pkg.tar.zst"
                 if [[ "${base_name}" != "${package_full_name}" ]]; then
-                  if [[ ! -f "${package_full_name}" ]]; then
-                    echo "[info] Renaming '${base_name}' to '${package_full_name}'"
-                    mv "${filepath}" "${package_full_name}"
+                  if [[ ! -f "${{ env.PACKAGE_PATH }}/${package_full_name}" ]]; then
+                    echo "[info] Moving package from '${filepath}' to '${{ env.PACKAGE_PATH }}/${package_full_name}'"
+                    mv "${filepath}" "${{ env.PACKAGE_PATH }}/${package_full_name}"
                     echo "[info] Successfully renamed package filename"
                   else
                     echo "[warn] Target file '${package_full_name}' already exists, skipping rename"
@@ -78,7 +76,7 @@ jobs:
         run: |
             git config --global user.name "github-actions[bot]"
             git config --global user.email "github-actions[bot]@users.noreply.github.com"
-            git add "${{ env.PACKAGE_PATH }}"/*.tar.zst
+            git add "${{ env.PACKAGE_PATH }}/"*.tar.zst
             if git commit -m "Added compiled AUR package(s): ${{ github.event.inputs.package_name }}"; then
               git push
               echo "Pushed compiled package(s) to GitHub repository."
