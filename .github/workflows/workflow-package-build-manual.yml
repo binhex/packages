@@ -63,8 +63,8 @@ jobs:
                 base_name="${filepath}"
                 package_name=$(echo "${base_name}" | grep -P -o -m 1 '^[^\d]+')
                 package_full_name="${package_name}x86_64.pkg.tar.zst"
-                echo "[info] Moving package from '${filepath}' to '${{ env.PACKAGE_PATH }}/${package_full_name}'"
-                mv -f "${filepath}" "${{ env.PACKAGE_PATH }}/${package_full_name}"
+                echo "[info] Moving package from '$(pwd)/${filepath}' to '${{ env.PACKAGE_PATH }}/${package_full_name}'"
+                mv -f "$(pwd)/${filepath}" "${{ env.PACKAGE_PATH }}/${package_full_name}"
                 echo "[info] Successfully moved package"
               fi
             done
