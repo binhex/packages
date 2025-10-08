@@ -34,8 +34,10 @@ jobs:
         run: |
           cd /tmp || exit 1
 
-          # get package version from PKGBUILD file
-          for package in ${{ env.AUR_PACKAGES }}; do
+          # Convert comma-separated list to array
+          IFS=',' read -ra package_array <<< "${{ env.AUR_PACKAGES }}"
+
+          for package in "${package_array[@]}"; do
             # download tarball and extract
             set -x
             if ! stderr=$(curl --max-time 600 --retry-max-time 600 --retry 12 --retry-delay 10 --connect-timeout 30 -o "${package}.tar.gz" -L "https://aur.archlinux.org/cgit/aur.git/snapshot/${package}.tar.gz" && tar -xvf "${package}.tar.gz" -C .); then
@@ -50,7 +52,10 @@ jobs:
         run: |
           cd /tmp || exit 1
 
-          for package in ${{ env.AUR_PACKAGES }}; do
+          # Convert comma-separated list to array
+          IFS=',' read -ra package_array <<< "${{ env.AUR_PACKAGES }}"
+
+          for package in "${package_array[@]}"; do
             if [[ -f "./${package}/PKGBUILD" ]]; then
               source "./${package}/PKGBUILD"
 
