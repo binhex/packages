@@ -184,6 +184,7 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git pull
           git add "${{ env.PACKAGE_PATH }}/"*
           if git commit -m "Added compiled AUR package(s) that were built: ${{ env.FILTERED_AUR_PACKAGES }}"; then
             git push
