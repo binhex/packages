@@ -93,13 +93,13 @@ jobs:
               if [[ -f "${{ env.PACKAGE_PATH }}/${pkg_name}-x86_64.pkg.tar.zst.version" ]]; then
                 existing_version=$(cat "${{ env.PACKAGE_PATH }}/${pkg_name}-x86_64.pkg.tar.zst.version" 2>/dev/null || echo "")
                 if [[ "${existing_version}" == "${pkg_version}" ]]; then
-                  echo "[info] Package '${pkg_name}' version '${pkg_version}' is already built and up-to-date, skipping adding to build list"
+                  echo "[info] Package '${pkg_name}' version '${pkg_version}' is already built and up-to-date, skipping adding to filtered package list"
                 else
-                  echo "[info] Package '${pkg_name}' version '${pkg_version}' is different to existing version '${existing_version}', adding to build list"
+                  echo "[info] Package '${pkg_name}' version '${pkg_version}' is different to existing version '${existing_version}', adding to filtered package list"
                   packages_to_build+=("${package}")
                 fi
               else
-                echo "[info] No existing version file found for package '${pkg_name}', adding to build list"
+                echo "[info] No existing version file found for package '${pkg_name}', adding to filtered package list"
                 packages_to_build+=("${package}")
               fi
             fi
@@ -122,7 +122,6 @@ jobs:
 
           echo "[debug] Original packages: '${{ env.AUR_PACKAGES }}'"
           echo "[debug] Filtered packages to build: '${filtered_packages}'"
-
       - name: Build AUR packages using docker image binhex/arch-devel
         if: env.SKIP_BUILD != 'true'
         shell: bash
