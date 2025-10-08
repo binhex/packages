@@ -42,7 +42,7 @@ jobs:
               exit 1
             fi
           done
-      - name: Identify package name and version from extracted tarball file 'PKGBUILD' and save to $GITHUB_ENV
+      - name: Identify package names and versions from extracted tarball file 'PKGBUILD' and save to $GITHUB_ENV
         shell: bash
         run: |
           cd /tmp || exit 1
@@ -65,18 +65,60 @@ jobs:
               echo "[warn] PKGBUILD file not found for package '${package}'" >&2
             fi
           done
+      - name: Compare version in .version file to pkg_ver from PKGBUILD file and filter packages
+        shell: bash
+        run: |
+          cd /tmp || exit 1
 
+          # Convert comma-separated list to array
+          IFS=',' read -ra package_array <<< "${{ env.AUR_PACKAGES }}"
+          packages_to_build=()
+
+          # process each package
+          for package in "${package_array[@]}"; do
+            # Get the package name from environment variable (format: "name,version")
+            package_info=$(printenv "${package}" 2>/dev/null || echo "")
+            if [[ -n "${package_info}" ]]; then
+              IFS=',' read -r pkg_name pkg_version <<< "${package_info}"
+
+              # Compare the version in the .version file to the pkgver from PKGBUILD
+              if [[ -f "${{ env.PACKAGE_PATH }}/${pkg_name}-x86_64.pkg.tar.zst.version" ]]; then
+                existing_version=$(cat "${{ env.PACKAGE_PATH }}/${pkg_name}-x86_64.pkg.tar.zst.version" 2>/dev/null || echo "")
+                if [[ "${existing_version}" == "${pkg_version}" ]]; then
+                  echo "[info] Package '${pkg_name}' version '${pkg_version}' is already built and up-to-date, skipping adding to build list"
+                else
+                  echo "[info] Package '${pkg_name}' version '${pkg_version}' is different to existing version '${existing_version}', adding to build list"
+                  packages_to_build+=("${package}")
+                fi
+              else
+                echo "[info] No existing version file found for package '${pkg_name}', adding to build list"
+                packages_to_build+=("${package}")
+              fi
+            fi
+          done
+
+          # Create new comma-separated list of packages to build
+          IFS=',' eval 'filtered_packages="${packages_to_build[*]}"'
+          echo "FILTERED_AUR_PACKAGES=${filtered_packages}" >> "${GITHUB_ENV}"
+          echo "[debug] Original packages: ${{ env.AUR_PACKAGES }}"
+          echo "[debug] Filtered packages to build: ${filtered_packages}"
       - name: Build AUR packages using docker image binhex/arch-devel
         shell: bash
         run: |
           cd /tmp || exit 1
 
+          # Check if there are any packages to build
+          if [[ -z "${{ env.FILTERED_AUR_PACKAGES }}" ]]; then
+            echo "[info] No packages need to be built, all are up-to-date"
+            exit 0
+          fi
+
           # ensure we have no pre-existing packages, as github re-uses executors
           rm -f *.tar.zst
 
-          echo "Package(s) to build: ${{ env.AUR_PACKAGES }}"
+          echo "Package(s) to build: ${{ env.FILTERED_AUR_PACKAGES }}"
           docker pull binhex/arch-devel:latest
-          docker run -v $(pwd):/host -t binhex/arch-devel bash -c "refresh.sh && aur.sh --aur-package '${{ env.AUR_PACKAGES }}' --package-path '/host'"
+          docker run -v $(pwd):/host -t binhex/arch-devel bash -c "refresh.sh && aur.sh --aur-package '${{ env.FILTERED_AUR_PACKAGES }}' --package-path '/host'"
       - name: DEBUG Showing compiled package(s) on host filesystem
         shell: bash
         run: |
@@ -87,16 +129,25 @@ jobs:
             echo "[info] No tar.zst files found - no packages were built, exiting workflow"
             exit 0
           fi
-      - name: Move compiled package to GitHub repository workspace
+      - name: Move with rename compiled package to GitHub repository workspace
         shell: bash
         run: |
           cd /tmp || exit 1
 
+          # Skip if no packages were built
+          if [[ -z "${{ env.FILTERED_AUR_PACKAGES }}" ]]; then
+            echo "[info] No packages were built, skipping move step"
+            exit 0
+          fi
+
           # fix ownership of the compiled packages and destination directory
           sudo chown -R $(id -u):$(id -g) *.tar.zst "${{ env.PACKAGE_PATH }}"
 
-          # Use the package names saved from PKGBUILD files
-          for package in ${{ env.AUR_PACKAGES }}; do
+          # Convert comma-separated list to array for the filtered packages
+          IFS=',' read -ra filtered_package_array <<< "${{ env.FILTERED_AUR_PACKAGES }}"
+
+          # move packages to GitHub workspace with correct naming format
+          for package in "${filtered_package_array[@]}"; do
             # Get the package name from environment variable (format: "name,version")
             package_info=$(printenv "${package}" 2>/dev/null || echo "")
             if [[ -n "${package_info}" ]]; then
@@ -104,7 +155,7 @@ jobs:
 
               # Find the compiled package file that matches this package
               for filepath in *.tar.zst; do
-                if [[ "${filepath}" == "${pkg_name}"-* ]]; then
+                if [[ "${filepath}" == "${pkg_name}"* ]]; then
                   final_name="${pkg_name}-x86_64.pkg.tar.zst"
                   echo "[info] Moving '${filepath}' to '${{ env.PACKAGE_PATH }}/${final_name}'"
                   mv "${filepath}" "${{ env.PACKAGE_PATH }}/${final_name}"
@@ -118,10 +169,16 @@ jobs:
       - name: Commit and push packages to currently checked out GitHub repository
         shell: bash
         run: |
+          # Skip if no packages were built
+          if [[ -z "${{ env.FILTERED_AUR_PACKAGES }}" ]]; then
+            echo "[info] No packages were built, skipping commit step"
+            exit 0
+          fi
+
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add "${{ env.PACKAGE_PATH }}/"*
-          if git commit -m "Added compiled AUR package(s): ${{ github.event.inputs.package_name }}"; then
+          if git commit -m "Added compiled AUR package(s) that were built: ${{ env.FILTERED_AUR_PACKAGES }}"; then
             git push
             echo "Pushed compiled package(s) to GitHub repository."
           else
