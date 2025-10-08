@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PACKAGE_PATH: "${GITHUB_WORKSPACE}/compiled/amd64"
-      AUR_PACKAGES: 'htpasswd,boost1.86,libtorrent-rasterbar-1_2-git,python2-bin'
+      AUR_PACKAGES: 'paru-bin,htpasswd,boost1.86,libtorrent-rasterbar-1_2-git,python2-bin'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
