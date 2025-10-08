@@ -103,12 +103,15 @@ jobs:
           echo "[debug] Original packages: ${{ env.AUR_PACKAGES }}"
           echo "[debug] Filtered packages to build: ${filtered_packages}"
 
-          # Exit entire workflow if no packages need to be built
+          # Set flag for conditional execution of subsequent steps
           if [[ -z "${filtered_packages}" ]]; then
-            echo "[info] No packages need to be built, all are up-to-date. Exiting workflow."
-            exit 0
+            echo "[info] No packages need to be built, all are up-to-date. Subsequent steps will be skipped."
+            echo "SKIP_BUILD=true" >> "${GITHUB_ENV}"
+          else
+            echo "SKIP_BUILD=false" >> "${GITHUB_ENV}"
           fi
       - name: Build AUR packages using docker image binhex/arch-devel
+        if: env.SKIP_BUILD != 'true'
         shell: bash
         run: |
           cd /tmp || exit 1
@@ -120,6 +123,7 @@ jobs:
           docker pull binhex/arch-devel:latest
           docker run -v $(pwd):/host -t binhex/arch-devel bash -c "refresh.sh && aur.sh --aur-package '${{ env.FILTERED_AUR_PACKAGES }}' --package-path '/host'"
       - name: DEBUG Showing compiled package(s) on host filesystem
+        if: env.SKIP_BUILD != 'true'
         shell: bash
         run: |
           cd /tmp || exit 1
@@ -130,6 +134,7 @@ jobs:
             exit 0
           fi
       - name: Move with rename compiled package to GitHub repository workspace
+        if: env.SKIP_BUILD != 'true'
         shell: bash
         run: |
           cd /tmp || exit 1
@@ -161,6 +166,7 @@ jobs:
             fi
           done
       - name: Commit and push packages to currently checked out GitHub repository
+        if: env.SKIP_BUILD != 'true'
         shell: bash
         run: |
           git config --global user.name "github-actions[bot]"
