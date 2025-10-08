@@ -6,7 +6,7 @@ on:
       package_name:
         description: 'Enter AUR package to build'
         required: true
-        default: 'htpasswd,libtorrent-rasterbar-1_2-git,python2-bin'
+        default: 'htpasswd,boost1.86-libs,libtorrent-rasterbar-1_2-git,python2-bin'
 
 jobs:
   package-build:
