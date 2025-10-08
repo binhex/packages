@@ -155,17 +155,17 @@ jobs:
           # fix ownership of the compiled packages and destination directory
           sudo chown -R $(id -u):$(id -g) *.tar.zst "${{ env.PACKAGE_PATH }}"
 
-          # Convert comma-separated list to array for the filtered packages
+          # convert comma-separated list to array for the filtered packages
           IFS=',' read -ra filtered_package_array <<< "${{ env.FILTERED_AUR_PACKAGES }}"
 
           # move packages to GitHub workspace with correct naming format
           for package in "${filtered_package_array[@]}"; do
-            # Get the package name from environment variable (format: "name,version")
+            # get the package name from environment variable (format: "name,version")
             package_info=$(printenv "${package}" 2>/dev/null || echo "")
             if [[ -n "${package_info}" ]]; then
               IFS=',' read -r pkg_name pkg_version <<< "${package_info}"
 
-              # Find the compiled package file that matches this package
+              # compare compiled package filename against the filename we want to rename to
               for filepath in *.tar.zst; do
                 if [[ "${filepath}" == "${pkg_name}"* ]]; then
                   final_name="${pkg_name}-x86_64.pkg.tar.zst"
