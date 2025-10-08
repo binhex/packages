@@ -102,7 +102,7 @@ jobs:
 
           # Set flag for conditional execution of subsequent steps
           if [[ -z "${filtered_packages}" ]]; then
-            echo "[info] No packages need to be built, all are up-to-date. Subsequent steps will be skipped."
+            echo "[info] All packages are up-to-date. Subsequent steps will be skipped."
             echo "SKIP_BUILD=true" >> "${GITHUB_ENV}"
             exit 0
           else
