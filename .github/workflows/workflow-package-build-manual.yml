@@ -102,16 +102,16 @@ jobs:
           echo "FILTERED_AUR_PACKAGES=${filtered_packages}" >> "${GITHUB_ENV}"
           echo "[debug] Original packages: ${{ env.AUR_PACKAGES }}"
           echo "[debug] Filtered packages to build: ${filtered_packages}"
+
+          # Exit entire workflow if no packages need to be built
+          if [[ -z "${filtered_packages}" ]]; then
+            echo "[info] No packages need to be built, all are up-to-date. Exiting workflow."
+            exit 0
+          fi
       - name: Build AUR packages using docker image binhex/arch-devel
         shell: bash
         run: |
           cd /tmp || exit 1
-
-          # Check if there are any packages to build
-          if [[ -z "${{ env.FILTERED_AUR_PACKAGES }}" ]]; then
-            echo "[info] No packages need to be built, all are up-to-date"
-            exit 0
-          fi
 
           # ensure we have no pre-existing packages, as github re-uses executors
           rm -f *.tar.zst
@@ -133,12 +133,6 @@ jobs:
         shell: bash
         run: |
           cd /tmp || exit 1
-
-          # Skip if no packages were built
-          if [[ -z "${{ env.FILTERED_AUR_PACKAGES }}" ]]; then
-            echo "[info] No packages were built, skipping move step"
-            exit 0
-          fi
 
           # fix ownership of the compiled packages and destination directory
           sudo chown -R $(id -u):$(id -g) *.tar.zst "${{ env.PACKAGE_PATH }}"
@@ -169,12 +163,6 @@ jobs:
       - name: Commit and push packages to currently checked out GitHub repository
         shell: bash
         run: |
-          # Skip if no packages were built
-          if [[ -z "${{ env.FILTERED_AUR_PACKAGES }}" ]]; then
-            echo "[info] No packages were built, skipping commit step"
-            exit 0
-          fi
-
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add "${{ env.PACKAGE_PATH }}/"*
