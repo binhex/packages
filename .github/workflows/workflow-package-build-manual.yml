@@ -99,17 +99,22 @@ jobs:
 
           # Create new comma-separated list of packages to build
           IFS=',' eval 'filtered_packages="${packages_to_build[*]}"'
-          echo "FILTERED_AUR_PACKAGES=${filtered_packages}" >> "${GITHUB_ENV}"
-          echo "[debug] Original packages: ${{ env.AUR_PACKAGES }}"
-          echo "[debug] Filtered packages to build: ${filtered_packages}"
 
           # Set flag for conditional execution of subsequent steps
           if [[ -z "${filtered_packages}" ]]; then
             echo "[info] No packages need to be built, all are up-to-date. Subsequent steps will be skipped."
             echo "SKIP_BUILD=true" >> "${GITHUB_ENV}"
+            exit 0
           else
             echo "SKIP_BUILD=false" >> "${GITHUB_ENV}"
           fi
+
+          # Save filtered package list to GitHub environment for use in subsequent steps
+          echo "FILTERED_AUR_PACKAGES=${filtered_packages}" >> "${GITHUB_ENV}"
+
+          echo "[debug] Original packages: '${{ env.AUR_PACKAGES }}'"
+          echo "[debug] Filtered packages to build: '${filtered_packages}'"
+
       - name: Build AUR packages using docker image binhex/arch-devel
         if: env.SKIP_BUILD != 'true'
         shell: bash
