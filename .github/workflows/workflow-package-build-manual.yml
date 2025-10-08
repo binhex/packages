@@ -37,10 +37,13 @@ jobs:
           # get package version from PKGBUILD file
           for package in ${{ env.AUR_PACKAGES }}; do
             # download tarball and extract
+            set -x
             if ! stderr=$(curl --max-time 600 --retry-max-time 600 --retry 12 --retry-delay 10 --connect-timeout 30 -o "${package}.tar.gz" -L "https://aur.archlinux.org/cgit/aur.git/snapshot/${package}.tar.gz" && tar -xvf "${package}.tar.gz" -C .); then
+              set +x
               echo "[error] Failed to download AUR package snapshot '${package}' from AUR, error is '${stderr}'" >&2
               exit 1
             fi
+            set +x
           done
       - name: Identify package names and versions from extracted tarball file 'PKGBUILD' and save to $GITHUB_ENV
         shell: bash
