@@ -176,36 +176,34 @@ jobs:
           # fix ownership of the compiled packages and destination directory
           sudo chown -R $(id -u):$(id -g) *.tar.zst "${{ env.PACKAGE_PATH }}"
 
-          # move ALL tar.zst files to GitHub workspace with correct naming format
-          for filepath in *.tar.zst; do
-            if [[ -f "${filepath}" ]]; then
-              echo "[info] Processing package file: ${filepath}"
+          # recursively find and move ALL tar.zst files to GitHub workspace with correct naming format
+          while IFS= read -r -d '' filepath; do
+            echo "[info] Processing package file: ${filepath}"
 
-              # Extract package name and version from .PKGINFO inside the tar.zst file
-              pkginfo_content=$(tar --zstd -xOf "${filepath}" .PKGINFO 2>/dev/null || echo "")
+            # Extract package name and version from .PKGINFO inside the tar.zst file
+            pkginfo_content=$(tar --zstd -xOf "${filepath}" .PKGINFO 2>/dev/null || echo "")
 
-              if [[ -n "${pkginfo_content}" ]]; then
-                # Extract package name and version from PKGINFO
-                pkg_name=$(echo "${pkginfo_content}" | grep "^pkgname = " | cut -d' ' -f3)
-                pkg_version=$(echo "${pkginfo_content}" | grep "^pkgver = " | cut -d' ' -f3)
+            if [[ -n "${pkginfo_content}" ]]; then
+              # Extract package name and version from PKGINFO
+              pkg_name=$(echo "${pkginfo_content}" | grep "^pkgname = " | cut -d' ' -f3)
+              pkg_version=$(echo "${pkginfo_content}" | grep "^pkgver = " | cut -d' ' -f3)
 
-                if [[ -n "${pkg_name}" && -n "${pkg_version}" ]]; then
-                  final_name="${pkg_name}-x86_64.pkg.tar.zst"
-                  echo "[info] Moving '${filepath}' to '${{ env.PACKAGE_PATH }}/${final_name}'"
-                  echo "[info] Package name: '${pkg_name}', version: '${pkg_version}'"
+              if [[ -n "${pkg_name}" && -n "${pkg_version}" ]]; then
+                final_name="${pkg_name}-x86_64.pkg.tar.zst"
+                echo "[info] Moving '${filepath}' to '${{ env.PACKAGE_PATH }}/${final_name}'"
+                echo "[info] Package name: '${pkg_name}', version: '${pkg_version}'"
 
-                  mv -f "${filepath}" "${{ env.PACKAGE_PATH }}/${final_name}"
+                mv -f "${filepath}" "${{ env.PACKAGE_PATH }}/${final_name}"
 
-                  echo "[info] Writing package version to file '${{ env.PACKAGE_PATH }}/${final_name}.version'"
-                  echo "${pkg_version}" > "${{ env.PACKAGE_PATH }}/${final_name}.version"
-                else
-                  echo "[warn] Could not extract package name or version from ${filepath}"
-                fi
+                echo "[info] Writing package version to file '${{ env.PACKAGE_PATH }}/${final_name}.version'"
+                echo "${pkg_version}" > "${{ env.PACKAGE_PATH }}/${final_name}.version"
               else
-                echo "[warn] Could not read .PKGINFO from ${filepath}"
+                echo "[warn] Could not extract package name or version from ${filepath}"
               fi
+            else
+              echo "[warn] Could not read .PKGINFO from ${filepath}"
             fi
-          done
+          done < <(find /tmp -name "*.tar.zst" -type f -print0)
       - name: Commit and push packages to currently checked out GitHub repository
         if: env.SKIP_BUILD != 'true'
         shell: bash
