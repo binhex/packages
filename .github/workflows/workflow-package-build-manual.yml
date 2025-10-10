@@ -174,7 +174,7 @@ jobs:
           cd /tmp || exit 1
 
           # fix ownership of the compiled packages and destination directory
-          sudo chown -R $(id -u):$(id -g) *.tar.zst "${{ env.PACKAGE_PATH }}"
+          sudo chown -R $(id -u):$(id -g) /tmp "${{ env.PACKAGE_PATH }}"
 
           # recursively find and move ALL tar.zst files to GitHub workspace with correct naming format
           while IFS= read -r -d '' filepath; do
