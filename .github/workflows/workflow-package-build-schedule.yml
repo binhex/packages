@@ -12,7 +12,6 @@ jobs:
   package-build:
     runs-on: ubuntu-latest
     env:
-      PACKAGE_PATH: "${GITHUB_WORKSPACE}/compiled/amd64"
       AUR_PACKAGES: 'htpasswd,libtorrent-rasterbar-1_2-git,python2-bin'
     steps:
       - name: Checkout
@@ -25,6 +24,29 @@ jobs:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.CR_PAT }}
+      - name: Set architecture-specific package path
+        shell: bash
+        run: |
+          # Detect architecture
+          arch=$(uname -m)
+          case "$arch" in
+            x86_64)
+              arch_name="amd64"
+              ;;
+            aarch64)
+              arch_name="arm64"
+              ;;
+            armv7l)
+              arch_name="armv7"
+              ;;
+            *)
+              arch_name="$arch"
+              ;;
+          esac
+
+          echo "PACKAGE_PATH=${GITHUB_WORKSPACE}/compiled/${arch_name}" >> "${GITHUB_ENV}"
+          echo "[info] Set PACKAGE_PATH to: ${GITHUB_WORKSPACE}/compiled/${arch_name}"
+          echo "[info] Detected architecture: $arch (mapped to: $arch_name)"
       - name: DEBUG Show Runners environment
         shell: bash
         run: |
@@ -154,27 +176,34 @@ jobs:
           # fix ownership of the compiled packages and destination directory
           sudo chown -R $(id -u):$(id -g) *.tar.zst "${{ env.PACKAGE_PATH }}"
 
-          # convert comma-separated list to array for the filtered packages
-          IFS=',' read -ra filtered_package_array <<< "${{ env.FILTERED_AUR_PACKAGES }}"
+          # move ALL tar.zst files to GitHub workspace with correct naming format
+          for filepath in *.tar.zst; do
+            if [[ -f "${filepath}" ]]; then
+              echo "[info] Processing package file: ${filepath}"
 
-          # move packages to GitHub workspace with correct naming format
-          for package in "${filtered_package_array[@]}"; do
-            # get the package name from environment variable (format: "name,version")
-            package_info=$(printenv "${package}" 2>/dev/null || echo "")
-            if [[ -n "${package_info}" ]]; then
-              IFS=',' read -r pkg_name pkg_version <<< "${package_info}"
+              # Extract package name and version from .PKGINFO inside the tar.zst file
+              pkginfo_content=$(tar --zstd -xOf "${filepath}" .PKGINFO 2>/dev/null || echo "")
 
-              # compare compiled package filename against the filename we want to rename to
-              for filepath in *.tar.zst; do
-                if [[ "${filepath}" == "${pkg_name}"* ]]; then
+              if [[ -n "${pkginfo_content}" ]]; then
+                # Extract package name and version from PKGINFO
+                pkg_name=$(echo "${pkginfo_content}" | grep "^pkgname = " | cut -d' ' -f3)
+                pkg_version=$(echo "${pkginfo_content}" | grep "^pkgver = " | cut -d' ' -f3)
+
+                if [[ -n "${pkg_name}" && -n "${pkg_version}" ]]; then
                   final_name="${pkg_name}-x86_64.pkg.tar.zst"
                   echo "[info] Moving '${filepath}' to '${{ env.PACKAGE_PATH }}/${final_name}'"
-                  mv "${filepath}" "${{ env.PACKAGE_PATH }}/${final_name}"
+                  echo "[info] Package name: '${pkg_name}', version: '${pkg_version}'"
+
+                  mv -f "${filepath}" "${{ env.PACKAGE_PATH }}/${final_name}"
+
                   echo "[info] Writing package version to file '${{ env.PACKAGE_PATH }}/${final_name}.version'"
                   echo "${pkg_version}" > "${{ env.PACKAGE_PATH }}/${final_name}.version"
-                  break
+                else
+                  echo "[warn] Could not extract package name or version from ${filepath}"
                 fi
-              done
+              else
+                echo "[warn] Could not read .PKGINFO from ${filepath}"
+              fi
             fi
           done
       - name: Commit and push packages to currently checked out GitHub repository

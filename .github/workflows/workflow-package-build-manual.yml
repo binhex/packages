@@ -12,7 +12,6 @@ jobs:
   package-build:
     runs-on: ubuntu-latest
     env:
-      PACKAGE_PATH: "${GITHUB_WORKSPACE}/compiled/amd64"
       AUR_PACKAGES: "${{ github.event.inputs.package_name }}"
     steps:
       - name: Checkout
@@ -25,6 +24,29 @@ jobs:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.CR_PAT }}
+      - name: Set architecture-specific package path
+        shell: bash
+        run: |
+          # Detect architecture
+          arch=$(uname -m)
+          case "$arch" in
+            x86_64)
+              arch_name="amd64"
+              ;;
+            aarch64)
+              arch_name="arm64"
+              ;;
+            armv7l)
+              arch_name="armv7"
+              ;;
+            *)
+              arch_name="$arch"
+              ;;
+          esac
+
+          echo "PACKAGE_PATH=${GITHUB_WORKSPACE}/compiled/${arch_name}" >> "${GITHUB_ENV}"
+          echo "[info] Set PACKAGE_PATH to: ${GITHUB_WORKSPACE}/compiled/${arch_name}"
+          echo "[info] Detected architecture: $arch (mapped to: $arch_name)"
       - name: DEBUG Show Runners environment
         shell: bash
         run: |
@@ -172,7 +194,7 @@ jobs:
                   echo "[info] Moving '${filepath}' to '${{ env.PACKAGE_PATH }}/${final_name}'"
                   echo "[info] Package name: '${pkg_name}', version: '${pkg_version}'"
 
-                  mv "${filepath}" "${{ env.PACKAGE_PATH }}/${final_name}"
+                  mv -f "${filepath}" "${{ env.PACKAGE_PATH }}/${final_name}"
 
                   echo "[info] Writing package version to file '${{ env.PACKAGE_PATH }}/${final_name}.version'"
                   echo "${pkg_version}" > "${{ env.PACKAGE_PATH }}/${final_name}.version"
