@@ -1,0 +1,4 @@
+; core variables
+[core]
+	; Enable Symlinks for this repo
+    symlinks = true
